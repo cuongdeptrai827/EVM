@@ -2,51 +2,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MAX_SIZE 100
+#define MAX_SIZE 1e9
 
-void insertionSortAsm(int* arr, int n) {
-    asm (
-            "mov $1, %%ecx\n\t"          // Initialize outer loop index j to 1
-            "outer_loop:\n\t"
-            "cmp %1, %%ecx\n\t"          // Compare j with n
-            "jge outer_loop_end\n\t"     // If j >= n, end outer loop
+void sort(int *input, int n) {
+    int flag = 1;
 
-            // key = arr[j]
-            "mov (%0, %%rcx, 4), %%eax\n\t"
-
-            // i = j - 1
-            "mov %%ecx, %%ebx\n\t"
-            "dec %%ebx\n\t"
-
-            // inner loop
-            "inner_loop:\n\t"
-            "cmp $0, %%ebx\n\t"          // Compare i with 0
-            "jl inner_loop_end\n\t"      // If i < 0, end inner loop
-
-            // Compare arr[i] with key
-            "mov (%0, %%rbx, 4), %%edx\n\t"
-            "cmp %%eax, %%edx\n\t"
-            "jle inner_loop_end\n\t"     // If arr[i] <= key, end inner loop
-
-            // arr[i + 1] = arr[i]
-            "mov %%edx, 4(%0, %%rbx, 4)\n\t"
-
-            // i--
-            "dec %%ebx\n\t"
-            "jmp inner_loop\n\t"         // Repeat inner loop
-
-            "inner_loop_end:\n\t"
-            // arr[i + 1] = key
-            "mov %%eax, 4(%0, %%rbx, 4)\n\t"
-
-            // j++
-            "inc %%ecx\n\t"
-            "jmp outer_loop\n\t"         // Repeat outer loop
-
-            "outer_loop_end:\n\t"
-            : // No output operands
-            : "r" (arr), "r" (n)         // Input operands
-            : "%eax", "%ebx", "%ecx", "%edx" // Clobbered registers
+    asm(
+        // Устанавливаем флаг в 1 для начала внешнего цикла
+            "movl $0x1, %0\n\t"
+            "outer_cycle_begin:\n\t" // Метка начала внешнего цикла
+            "cmpl $0x0, %0\n\t" // Сравниваем флаг с 0
+            "je outer_cycle_end\n\t" // Если флаг равен 0, завершаем цикл
+            "movl $0x0, %0\n\t" // Сбрасываем флаг для начала внутреннего цикла
+            "movq $0, %%rsi\n\t" // Устанавливаем счетчик для внутреннего цикла
+            "outer_loop:\n\t" // Метка начала внутреннего цикла
+            "    incq %%rsi\n\t" // Увеличиваем счетчик
+            "    cmpq %%rax, %%rsi\n\t" // Сравниваем счетчик с n
+            "    jge outer_loop_end\n\t" // Если счетчик >= n, завершаем цикл
+            "    movl (%%rbx, %%rsi, 0x4), %%ecx\n\t" // Загружаем текущий элемент массива в ecx
+            "    movl -0x4(%%rbx, %%rsi, 0x4), %%edx\n\t" // Загружаем предыдущий элемент массива в edx
+            "    cmpl %%edx, %%ecx\n\t" // Сравниваем текущий и предыдущий элементы
+            "    jge dont_swap\n\t" // Если текущий >= предыдущего, пропускаем перестановку
+            "    xorl %%edx, %%ecx\n\t" // Меняем местами элементы с помощью XOR
+            "    xorl %%ecx, %%edx\n\t"
+            "    xorl %%edx, %%ecx\n\t"
+            "    movl %%ecx, (%%rbx, %%rsi, 0x4)\n\t" // Сохраняем текущий элемент на место предыдущего
+            "    movl %%edx, -0x4(%%rbx, %%rsi, 0x4)\n\t" // Сохраняем предыдущий элемент на место текущего
+            "    movl $0x1, %0\n\t" // Устанавливаем флаг в 1 (была произведена перестановка)
+            "    dont_swap:\n\t"
+            "    jmp outer_loop\n\t" // Переходим к следующей итерации внутреннего цикла
+            "outer_loop_end:\n\t" // Метка конца внутреннего цикла
+            "    decq %%rax\n\t" // Уменьшаем счетчик n
+            "    testl %0, %0\n\t" // Проверяем флаг после завершения внутреннего цикла
+            "    jnz outer_cycle_begin\n\t" // Если флаг установлен, продолжаем внешний цикл
+            "outer_cycle_end:\n\t" // Метка конца внешнего цикла
+            : "+r"(flag) // Входной операнд - флаг (изменяемый)
+            : "b"(input), "a"(n) // Входные операнды - массив input и n
+            : "memory", "cc", "rsi", "ecx", "edx" // Список регистров, которые используются и изменяются в ассемблерной вставке
             );
 }
 
@@ -95,7 +87,7 @@ int main() {
     fclose(input_file);
 
     // Gọi hàm sắp xếp bằng inline assembly
-    insertionSortAsm(arr, n);
+    sort(arr, n);
 
     FILE* output_file = fopen("OUTPUT.txt", "w");
     if (output_file == NULL) {

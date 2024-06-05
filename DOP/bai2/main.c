@@ -1,91 +1,46 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-void findDuplicates(int* arr, int* result, int n) {
-    asm (
-            "movl %0, %%ecx\n\t"
-            "movl %1, %%esi\n\t"
-            "movl %2, %%edi\n\t"
-            "xorl %%edx, %%edx\n\t"
-            "outer_loop:\n\t"
-            "cmpl %%edx, %%ecx\n\t"
-            "jge outer_loop_end\n\t"
-            "movl (%%esi, %%edx, 4), %%eax\n\t"
-            "movl (%%edi, %%eax, 4), %%ebx\n\t"
-            "incl %%ebx\n\t"
-            "movl %%ebx, (%%edi, %%eax, 4)\n\t"
-            "incl %%edx\n\t"
-            "jmp outer_loop\n\t"
-            "outer_loop_end:\n\t"
-            :
-            : "g" (n), "g" (arr), "g" (result)
-            : "%eax", "%ebx", "%ecx", "%edx", "%esi", "%edi", "memory"
+#define MAX_VALUE 1000  // Adjust this based on the range of values in your array
+
+void find_duplicates(int *array, int size) {
+    // Create and initialize the counts array to 0
+    int counts[MAX_VALUE + 1] = {0};
+
+    // Inline assembly to count occurrences of each element in the array
+    __asm__ (
+            "movl %1, %%ecx\n"           // Load the size of the array into ECX
+            "movl %2, %%esi\n"           // Load the base address of the input array into ESI
+            "leal %0, %%ebx\n"           // Load the address of the counts array into EBX
+            "xorl %%edx, %%edx\n"        // Clear EDX (loop counter for the input array)
+            "count_loop:\n"
+            "cmpl %%edx, %%ecx\n"        // Compare EDX (loop counter) with ECX (array size)
+            "jge count_end\n"            // If EDX >= ECX, end the loop
+            "movl (%%esi,%%edx,4), %%eax\n" // Load the current array element into EAX
+            "addl $0, (%%ebx, %%eax, 4)\n" // Dummy addl to adjust the address for correct use in incl
+            "incl (%%ebx, %%eax, 4)\n"   // Increment the count of this element in the counts array
+            "incl %%edx\n"               // Increment the loop counter
+            "jmp count_loop\n"           // Jump back to the start of the loop
+            "count_end:\n"
+            :                             // No output operands
+            : "m"(counts), "r"(size), "r"(array)
+            : "eax", "ebx", "ecx", "edx", "esi"
             );
+
+    // Loop through the counts array to find and print duplicates
+    for (int i = 0; i <= MAX_VALUE; ++i) {
+        if (counts[i] > 1) {
+            printf("Element %d has %d duplications\n", i, counts[i]);
+        }
+    }
 }
+
 int main() {
-    FILE *inputFile = fopen("INPUT.TXT", "r");
-    FILE *outputFile = fopen("OUTPUT.TXT", "w");
+    int array[] = {1, 2, 2, 3, 4, 4, 4, 5, 5, 5, 5};
+    int size = sizeof(array) / sizeof(array[0]);
 
-    if (inputFile == NULL || outputFile == NULL) {
-        printf("Lỗi khi mở file.\n");
-        return 1;
-    }
-
-    int N;
-    fscanf(inputFile, "%d", &N);
-
-    if (N < 1 || N > 100) {
-        printf("N không nằm trong khoảng cho phép.\n");
-        fclose(inputFile);
-        fclose(outputFile);
-        return 1;
-    }
-
-    int *numbers = (int *)malloc(N * sizeof(int));
-    if (numbers == NULL) {
-        printf("Lỗi khi cấp phát bộ nhớ.\n");
-        fclose(inputFile);
-        fclose(outputFile);
-        return 1;
-    }
-
-    // Đọc các số từ file vào mảng numbers
-    for (int i = 0; i < N; i++) {
-        fscanf(inputFile, "%d", &numbers[i]);
-        if (abs(numbers[i]) > 1000000000) {
-            printf("Số không nằm trong khoảng cho phép.\n");
-            free(numbers);
-            fclose(inputFile);
-            fclose(outputFile);
-            return 1;
-        }
-    }
-
-    // Tạo mảng kết quả để lưu số lần xuất hiện của mỗi số
-    int *result = (int *)calloc(1000000001, sizeof(int));
-
-    // Gọi hàm để tìm và lưu các số trùng lặp
-    findDuplicates(numbers, result, N);
-
-    // In ra file OUTPUT.TXT các số trùng lặp
-    int foundDuplicates = 0;
-    for (int i = 0; i < 1000000001; i++) {
-        if (result[i] > 1) {
-            fprintf(outputFile, "%d - %d\n", i, result[i]);
-            foundDuplicates = 1;
-        }
-    }
-
-    // Nếu không có số trùng lặp
-    if (!foundDuplicates) {
-        fprintf(outputFile, "None\n");
-    }
-
-    // Giải phóng bộ nhớ và đóng file
-    free(numbers);
-    free(result);
-    fclose(inputFile);
-    fclose(outputFile);
+    find_duplicates(array, size);
 
     return 0;
 }
